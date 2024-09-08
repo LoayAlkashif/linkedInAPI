@@ -13,31 +13,31 @@ const addCompany = catchError(async (req, res, next) => {
     address,
     numberOfEmployees,
     companyEmail,
-    companyHR,
+    
   } = req.body;
-  const comapnyExist = await Company.findOne({ companyName });
+  const comapnyExist = await Company.findOne({$or:[{companyName}, {companyEmail}, {companyHR: req.user.userId}]});
   if (comapnyExist) return next(new AppError("Company is already Exist", 409));
 
-  const newCompany = new Company({
+  const company = new Company({
     companyName,
     description,
     industry,
     address,
     numberOfEmployees,
     companyEmail,
-    companyHR,
+    companyHR: req.user.userId,
   });
-  await newCompany.save();
-  res.status(201).json({ message: "Added Company", newCompany });
+  await company.save();
+  res.status(201).json({ message: "Added Company", company });
 });
 
 // update ccompany by user his role is Company_HR
 const updateCompany = catchError(async (req, res, next) => {
-  const company = await Company.findById(req.params.id);
+  const company = await Company.findOne({_id:req.params.id , companyHR: req.user.userId});
   if (!company) return next(new AppError("Company not found", 404));
 
   if (company.companyHR.toString() !== req.user.userId.toString()) {
-    return next(new AppError("You do not have permission to update", 401));
+    return next(new AppError("You don't have permission to update", 401));
   }
 
   Object.assign(company, req.body);
@@ -51,7 +51,7 @@ const deleteCompany = catchError(async (req, res, next) => {
   if (!company) return next(new AppError("Company not found", 404));
   // check user his role is company
   if (company.companyHR.toString() !== req.user.userId.toString()) {
-    return next(new AppError("You do not have permission to update", 401));
+    return next(new AppError("You do not have permission to delete company", 401));
   }
 
   await Company.findByIdAndDelete(company);

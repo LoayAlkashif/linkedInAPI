@@ -1,13 +1,22 @@
 import multer from "multer";
-import { v4 as uuidv4 } from "uuid";
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/");
-  },
-  filename: (req, file, cb) => {
-    cb(null, uuidv4() + "_" + file.originalname);
-  },
-});
 
-export const upload = multer({ storage });
+export const filteration = {
+  image: ["image/png","image/jpeg", "image/gif"],
+  file: ["application/pdf", "application/msword"]
+}
+
+export const uploadFile = (filter) => {
+const storage = multer.diskStorage({})
+const fileFilter = (req,file,cb) => {
+  if(filter.includes(file.mimetype)){
+    cb(null, true)
+  }
+  else {
+    cb( new Error("invalid file format"), false)
+  }
+}
+
+const upload = multer({storage, fileFilter})
+return upload
+}

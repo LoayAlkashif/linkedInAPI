@@ -25,10 +25,12 @@ const schema = new Schema(
     addedBy: {
       type: Types.ObjectId,
       ref: "User",
+      required: true
     },
     company: {
       type: Types.ObjectId,
       ref: "Company",
+      required: true
     },
   },
   { timestamps: { updatedAt: false }, versionKey: false }

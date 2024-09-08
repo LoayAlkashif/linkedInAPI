@@ -12,7 +12,7 @@ const schema = new Schema(
     },
     userTechSkills: [String],
     userSoftSkills: [String],
-    userResume: String,
+    userResume: Object,
   },
   { versionKey: false, timestamps: { updatedAt: false } }
 );

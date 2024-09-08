@@ -1,36 +1,40 @@
 import { Router } from "express";
-
-import { referTo, verifyToken } from "../../middleware/verifyToken.js";
-import { upload } from "../../middleware/fileUpload.js";
-import {
-  addJob,
-  allJobs,
-  applyJob,
-  deleteJob,
-  filtersJobs,
-  jobsForSpecificCompany,
-  updateJob,
-} from "./job.controller.js";
+import { uploadFile, filteration } from "../../middleware/fileUpload.js";
+import { allowedTo, verifyToken } from "../../middleware/verifyToken.js";
+import * as JC from "./job.controller.js";
 import { filters } from "../../middleware/filterForJobs.js";
 
 const jobRouter = Router();
-jobRouter.post("/", verifyToken, referTo("Company_HR"), addJob);
-jobRouter.put("/:id", verifyToken, referTo("Company_HR"), updateJob);
-jobRouter.delete("/:id", verifyToken, referTo("Company_HR"), deleteJob);
-jobRouter.get("/", verifyToken, referTo("Company_HR", "User"), allJobs);
+jobRouter.post("/addJob", verifyToken, allowedTo("Company_HR"), JC.addJob);
+jobRouter.put("/:id", verifyToken, allowedTo("Company_HR"), JC.updateJob);
+jobRouter.delete("/:id", verifyToken, allowedTo("Company_HR"), JC.deleteJob);
+jobRouter.get("/", verifyToken, allowedTo("Company_HR", "User"), JC.allJobs);
 jobRouter.get(
   "/company",
   verifyToken,
-  referTo("Company_HR", "User"),
-  jobsForSpecificCompany
+  allowedTo("Company_HR", "User"),
+  JC.jobsForSpecificCompany
 );
 jobRouter.get(
   "/filter/search",
   verifyToken,
-  referTo("Company_HR", "User"),
+  allowedTo("Company_HR", "User"),
   filters,
-  filtersJobs
+  JC.filtersJobs
 );
-jobRouter.post("/applyjob", verifyToken, upload.single("userResume"), applyJob);
+jobRouter.post(
+  "/applyjob",
+  verifyToken,
+  allowedTo("User"),
+  uploadFile(filteration.file).single("pdf"),
+  JC.applyJob
+);
 
+
+jobRouter.get(
+  "/excelsheet/:companyId",
+  verifyToken,
+  allowedTo("Company_HR","User"),
+  JC.excelSheet
+);
 export default jobRouter;

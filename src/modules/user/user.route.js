@@ -4,7 +4,7 @@ import {
   forgetPassword,
   getAccountData,
   otpVerify,
-  recoveryEmail,
+  recoveryEmails,
   resetPassword,
   signin,
   signup,
@@ -20,18 +20,19 @@ import {
   resetPasswordValidation,
   signinValidation,
   signupValidation,
+  updateUserValidation,
 } from "./user.validation.js";
-import { verifyToken } from "../../middleware/verifyToken.js";
+import { allowedTo, verifyToken } from "../../middleware/verifyToken.js";
 
 const userRouter = Router();
 userRouter.post("/signup", validate(signupValidation), checkEmail, signup);
 userRouter.post("/verify", validate(otpValidation), otpVerify);
 userRouter.post("/signin", validate(signinValidation), signin);
-userRouter.put("/:id", verifyToken, updateUser);
-userRouter.put("/password/:id", updatePassword);
-userRouter.delete("/:id", verifyToken, deleteUser);
-userRouter.get("/:id", verifyToken, getAccountData);
-userRouter.get("/profile/search", userProfile);
+userRouter.patch("/", verifyToken, allowedTo("User", "Company_HR"), validate(updateUserValidation), updateUser);
+userRouter.patch("/password", verifyToken,updatePassword);
+userRouter.delete("/deleteUser", verifyToken, allowedTo("User", "Company_HR"), deleteUser);
+userRouter.get("/profile", verifyToken, allowedTo("User", "Company_HR"),getAccountData);
+userRouter.get("/getUser", userProfile);
 userRouter.post(
   "/password/forgetpassword",
   validate(forgetPasswordValidation),
@@ -42,6 +43,6 @@ userRouter.post(
   validate(resetPasswordValidation),
   resetPassword
 );
-userRouter.get("/for/recoveryemail", recoveryEmail);
+userRouter.get("/recoveryEmails", recoveryEmails);
 
 export default userRouter;

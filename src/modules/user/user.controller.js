@@ -4,10 +4,6 @@ import { User } from "../../../database/models/user.model.js";
 import { sendEmail } from "../../email/sendEmail.js";
 import { catchError } from "../../middleware/catchError.js";
 import { AppError } from "../../utils/appError.js";
-import dotenv from "dotenv";
-
-// Load environment variables from .env file
-dotenv.config();
 
 // user signup
 const signup = catchError(async (req, res, next) => {
@@ -29,7 +25,6 @@ const signup = catchError(async (req, res, next) => {
   const user = new User({
     firstName,
     lastName,
-    username: `${firstName} ${lastName}`,
     email,
     password,
     recoveryEmail,
@@ -83,12 +78,12 @@ const otpVerify = catchError(async (req, res, next) => {
 
 // user signin
 const signin = catchError(async (req, res, next) => {
+  const { email, password, mobileNumber, recoveryEmail } = req.body;
   const user = await User.findOne({
-    $or: [{ email: req.body.email }, { mobileNumber: req.body.mobileNumber }],
-    $or: [{ email: req.body.email }],
+    $or: [{ email }, { mobileNumber }, { recoveryEmail }],
   });
   // check if email and password are correct
-  if (!user || !bcrypt.compareSync(req.body.password, user.password))
+  if (!user || !bcrypt.compareSync(password,user.password))
     return next(new AppError("Wrong Email or Paasword", 401));
   // user must be verified if not verified
   if (user.otpVerified == false)
@@ -108,47 +103,29 @@ const signin = catchError(async (req, res, next) => {
 });
 // update user
 const updateUser = catchError(async (req, res, next) => {
-  const { email, mobileNumber, recoveryEmail, DOB, lastName, firstName } =
-    req.body;
+  const { email, mobileNumber, recoveryEmail, DOB, lastName, firstName } = req.body;
 
-  // Find the user by ID to get current details
-  const currentUser = await User.findById(req.params.id);
-  if (!currentUser) {
-    return next(new AppError("User not found", 404));
+  const user = req.user
+  const isExist  = await User.findOne({$or: [{email}, {mobileNumber}], _id: {$ne: user.userId}})
+
+  if(isExist) {
+    return res.json("duplicate info!")
   }
 
-  // Check that there's no email or number that exists with another user
-  if (
-    (email && email !== currentUser.email) ||
-    (mobileNumber && mobileNumber !== currentUser.mobileNumber)
-  ) {
-    const emailOrPhoneNumberExist = await User.findOne({
-      $or: [email ? { email } : {}, mobileNumber ? { mobileNumber } : {}],
-    });
-
-    if (emailOrPhoneNumberExist)
-      return next(new AppError("Email or mobile number already exist", 409));
+  if(firstName) {
+    req.body.username = firstName + " " + user.lastName
   }
 
-  // Prepare the updated fields, using existing values if new ones are not provided
-  const updatedFields = {
-    email: email || currentUser.email,
-    mobileNumber: mobileNumber || currentUser.mobileNumber,
-    username: `${firstName} ${lastName}`,
-    recoveryEmail:
-      recoveryEmail !== undefined ? recoveryEmail : currentUser.recoveryEmail,
-    DOB: DOB !== undefined ? DOB : currentUser.DOB,
-    lastName: lastName !== undefined ? lastName : currentUser.lastName,
-    firstName: firstName !== undefined ? firstName : currentUser.firstName,
-  };
+  if(lastName) {
+    req.body.username = user.firstName + " " + lastName
+  }
 
-  const user = await User.findByIdAndUpdate(req.params.id, updatedFields, {
-    new: true,
-  });
+  if(firstName && lastName) {
+    req.body.username = firstName + " " + lastName
+  }
 
-  // User not logged in
-  if (user.status !== "online")
-    return next(new AppError("You are not logged in", 401));
+  await User.updateOne({_id: user.userId}, req.body)
+  
 
   res.status(200).json({ message: "updated", user });
 });
@@ -156,12 +133,7 @@ const updateUser = catchError(async (req, res, next) => {
 // update password
 const updatePassword = catchError(async (req, res, next) => {
   const { currentPassword, newPassword } = req.body;
-  const user = await User.findById(req.params.id);
-  if (!user) return next(new AppError("user not found", 404));
-
-  // user not logedin
-  if (user.status !== "online")
-    return next(new AppError("You are not logedin", 401));
+  const user = await User.findById(req.user.userId);
 
   if (!bcrypt.compareSync(currentPassword, user.password))
     return next(new AppError("incorrect current password", 400));
@@ -173,28 +145,25 @@ const updatePassword = catchError(async (req, res, next) => {
 
 //delete user
 const deleteUser = catchError(async (req, res, next) => {
-  const user = await User.findByIdAndDelete(req.params.id);
-  if (!user) return next(new AppError("User not found", 404));
-  if (user.status === "offline")
-    return next(new AppError("You must login", 401));
 
+  await User.deleteOne({_id:req.user.userId})
   res.status(200).json({ message: "User Deleted" });
 });
 
 //Get user account data
 const getAccountData = catchError(async (req, res, next) => {
-  const user = await User.findById(req.params.id);
+  const user = await User.findById(req.user.userId).select("firstName lastName username email mobileNumber DOB");
   if (!user) return next(new AppError("User not found", 404));
 
-  res.status(200).json({ message: "Founded", user });
+  res.status(200).json({ message: "Profile", user });
 });
 
 //Get profile data for another user
 const userProfile = catchError(async (req, res, next) => {
   const { username } = req.query;
 
+  const user = await User.findOne({ username }).select("firstName lastName username email role ");
   if (!username) return next(new AppError("User not found", 401));
-  const user = await User.findOne({ username });
   res.status(200).json({ message: "Founded", user });
 });
 
@@ -252,12 +221,12 @@ const resetPassword = catchError(async (req, res, next) => {
 });
 
 // get recoveryEmail
-const recoveryEmail = catchError(async (req, res, next) => {
-  let recoveryEmail = await User.find({
+const recoveryEmails = catchError(async (req, res, next) => {
+  let users = await User.find({
     recoveryEmail: req.body.recoveryEmail,
-  });
+  }).select("firstName lastName username email role recoveryEmail");
 
-  res.status(200).json({ message: "success", recoveryEmail });
+  return res.status(200).json({ message: "success", users });
 });
 export {
   signup,
@@ -270,5 +239,5 @@ export {
   userProfile,
   forgetPassword,
   resetPassword,
-  recoveryEmail,
+  recoveryEmails,
 };
